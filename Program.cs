@@ -19,82 +19,93 @@ namespace FitgirlReadmeScraper
         [STAThread]
         static async Task Main(string[] args)
         {
-            if (args.Length < 2)
-            {
-                if (File.Exists("names.txt"))
-                    File.Delete("names.txt");
-                if (File.Exists("failed.txt"))
-                    File.Delete("failed.txt");
+	        var cd = Path.GetDirectoryName(Environment.ProcessPath);
+			if (Environment.CurrentDirectory != cd && cd != null)
+				Environment.CurrentDirectory = cd;
 
-                var tasks = new List<Task>();
-                foreach (var f in new DirectoryInfo(@"E:\Games\").EnumerateDirectories("*", SearchOption.AllDirectories))
-                {
-                    var folderPath = f.FullName;
+	        try
+	        {
+		        if (args.Length < 2)
+		        {
+			        if (File.Exists("names.txt"))
+				        File.Delete("names.txt");
+			        if (File.Exists("failed.txt"))
+				        File.Delete("failed.txt");
 
-                    if (f.EnumerateFiles("cover.jpg").Any())
-                        continue;
+			        var tasks = new List<Task>();
+			        foreach (var f in new DirectoryInfo(@"E:\Games\").EnumerateDirectories("*", SearchOption.AllDirectories))
+			        {
+				        var folderPath = f.FullName;
 
-                    if (!f.EnumerateDirectories("MD5").Any())
-                        continue;
+				        if (f.EnumerateFiles("cover.jpg").Any())
+					        continue;
 
-                    var regex = new Regex(@"^(?<name>.+?)(\s\(.+ Edition\))?(\s\(\d+\))?$");
-                    var match = regex.Match(f.Name);
-                    if (match.Success)
-                    {
-                        var name = match.Groups["name"].Value;
+				        if (!f.EnumerateDirectories("MD5").Any())
+					        continue;
 
-                        await File.AppendAllTextAsync("names.txt", folderPath + Environment.NewLine);
-                        
-                        var web = new HtmlWeb();
-                        var searchResults = await web.LoadFromWebAsync("https://fitgirl-repacks.site/?s=" + HttpUtility.UrlEncode(name));
-                        //var searchResults = new HtmlDocument();
-                        //searchResults.Load("temp.html");
-                        var firstResult = searchResults.DocumentNode.SelectNodes("//article[contains(@class,'post')]")?.FirstOrDefault();
-                        if (firstResult != null)
-                        {
-                            var titleNode = firstResult.SelectSingleNode("//*[contains(@class, 'entry-title')]/a");
-                            var title = HttpUtility.HtmlDecode(titleNode.InnerHtml);
-                            var titleLink = titleNode.GetAttributeValue("href", null);
-                            if (MessageBox.Show("Found match for.." + Environment.NewLine + folderPath + Environment.NewLine + Environment.NewLine + title + Environment.NewLine + "Is this correct?", "",
-                                    MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
-                            {
-                                tasks.Add(Task.Run(async () =>
-                                {
-                                    try
-                                    {
-                                        var doc = await web.LoadFromWebAsync(titleLink);
-                                        var linkNode = doc.DocumentNode.SelectNodes("//*[contains(@class, 'entry-content')]//ul//a")?.FirstOrDefault(node => node.InnerText == "1337x");
-                                        if (linkNode != null)
-                                            await ScrapeAsync(linkNode.GetAttributeValue("href", null), folderPath);
-                                        else
-                                            await File.AppendAllTextAsync("failed.txt", folderPath + "\r\n");
-                                    }
-                                    catch
-                                    {
-                                        await File.AppendAllTextAsync("failed.txt", folderPath + "\r\n");
-                                    }
-                                }));
-                            }
-                            else
-                                await File.AppendAllTextAsync("failed.txt", folderPath + "\r\n");
-                        }
-                        else
-                            await File.AppendAllTextAsync("failed.txt", folderPath + "\r\n");
-                    }
-                }
+				        var regex = new Regex(@"^(?<name>.+?)(\s\(.+ Edition\))?(\s\(\d+\))?$");
+				        var match = regex.Match(f.Name);
+				        if (match.Success)
+				        {
+					        var name = match.Groups["name"].Value;
 
-                await Task.WhenAll(tasks);
-                MessageBox.Show("Done!");
+					        await File.AppendAllTextAsync("names.txt", folderPath + Environment.NewLine);
 
-                return;
-            }
+					        var web = new HtmlWeb();
+					        var searchResults = await web.LoadFromWebAsync("https://fitgirl-repacks.site/?s=" + HttpUtility.UrlEncode(name));
+					        //var searchResults = new HtmlDocument();
+					        //searchResults.Load("temp.html");
+					        var firstResult = searchResults.DocumentNode.SelectNodes("//article[contains(@class,'post')]")?.FirstOrDefault();
+					        if (firstResult != null)
+					        {
+						        var titleNode = firstResult.SelectSingleNode("//*[contains(@class, 'entry-title')]/a");
+						        var title = HttpUtility.HtmlDecode(titleNode.InnerHtml);
+						        var titleLink = titleNode.GetAttributeValue("href", null);
+						        if (MessageBox.Show("Found match for.." + Environment.NewLine + folderPath + Environment.NewLine + Environment.NewLine + title + Environment.NewLine + "Is this correct?", "",
+							            MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+						        {
+							        tasks.Add(Task.Run(async () =>
+							        {
+								        try
+								        {
+									        var doc = await web.LoadFromWebAsync(titleLink);
+									        var linkNode = doc.DocumentNode.SelectNodes("//*[contains(@class, 'entry-content')]//ul//a")?.FirstOrDefault(node => node.InnerText == "1337x");
+									        if (linkNode != null)
+										        await ScrapeAsync(linkNode.GetAttributeValue("href", null), folderPath);
+									        else
+										        await File.AppendAllTextAsync("failed.txt", folderPath + "\r\n");
+								        }
+								        catch
+								        {
+									        await File.AppendAllTextAsync("failed.txt", folderPath + "\r\n");
+								        }
+							        }));
+						        }
+						        else
+							        await File.AppendAllTextAsync("failed.txt", folderPath + "\r\n");
+					        }
+					        else
+						        await File.AppendAllTextAsync("failed.txt", folderPath + "\r\n");
+				        }
+			        }
 
-            await ScrapeAsync(args[1], args[0]);
+			        await Task.WhenAll(tasks);
+			        MessageBox.Show("Done!");
+
+			        return;
+		        }
+
+		        await ScrapeAsync(args[1], args[0]);
+	        }
+	        catch (Exception ex)
+	        {
+		        MessageBox.Show(ex.ToString());
+	        }
         }
 
         private static async Task ScrapeAsync(string url, string targetFolder)
         {
-            targetFolder = targetFolder.EndsWith(Path.DirectorySeparatorChar) ? targetFolder : (targetFolder + Path.DirectorySeparatorChar);
+	        targetFolder = targetFolder.EndsWith(Path.DirectorySeparatorChar) ? targetFolder : (targetFolder + Path.DirectorySeparatorChar);
 
             var web = new HtmlWeb();
             var doc = await web.LoadFromWebAsync(url);
@@ -153,7 +164,19 @@ namespace FitgirlReadmeScraper
 	            var releaseDate = GetReleaseDate(innerText);
 	            if (releaseDate != null)
 		            newFolder += " (" + releaseDate.Value.Year + ")";
-	            Directory.Move(targetFolder, newFolder);
+
+	            for (int t = 0; t < 3; t++)
+	            {
+		            try
+		            {
+			            Directory.Move(targetFolder, newFolder);
+			            break;
+		            }
+		            catch (IOException ex) when (ex.Message == "The process cannot access the file because it is being used by another process.")
+		            {
+			            MessageBox.Show("Directory in use, hit OK to try again.");
+		            }
+	            }
             }
         }
 
