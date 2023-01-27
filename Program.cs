@@ -107,7 +107,7 @@ namespace FitgirlReadmeScraper
             foreach (var img in desc.SelectNodes("//img"))
             {
                 var data = img.GetDataAttribute("original");
-                if (data?.Value != null && !data.Value.EndsWith("fakes.jpg"))
+                if (data?.Value != null && !data.Value.EndsWith("fakes.jpg") && !data.Value.EndsWith("fakes2.jpg"))
                 {
                     var ext = Path.GetExtension(data.Value);
                     var cImgIndex = imgIndex;
@@ -129,20 +129,32 @@ namespace FitgirlReadmeScraper
                 }
             }
 
+            desc.InnerHtml = desc.InnerHtml.Replace("\r", "").Replace("\n", "").Replace("<br>", "\r\n").Replace("</li>", "\r\n").Replace("<li>", "-");
+            var innerText = desc.InnerText;
+            var i = innerText.IndexOf("Problems during installation?", StringComparison.Ordinal);
+            if (i >= 0)
+	            innerText = innerText[..i];
+            innerText = innerText.Trim('\r', '\n', ' ', '\t');
+            
             var readmePath = targetFolder + "readme.txt";
             if (!File.Exists(readmePath))
-            {
-                desc.InnerHtml = desc.InnerHtml.Replace("\r", "").Replace("\n", "").Replace("<br>", "\r\n").Replace("</li>", "\r\n").Replace("<li>", "-");
-                var innerText = desc.InnerText;
-                var i = innerText.IndexOf("Problems during installation?", StringComparison.Ordinal);
-                if (i >= 0)
-                    innerText = innerText[..i];
-                innerText = innerText.Trim('\r', '\n', ' ', '\t');
-
-                await File.WriteAllTextAsync(readmePath, innerText);
-            }
+	            await File.WriteAllTextAsync(readmePath, innerText);
 
             await Task.WhenAll(tasks);
+
+            var badSuffix = " [FitGirl Repack]\\";
+            if (targetFolder.EndsWith(badSuffix))
+            {
+	            var newFolder = targetFolder.Remove(targetFolder.Length - badSuffix.Length);
+
+	            var edition = GetEdition(innerText);
+	            if (edition != null)
+		            newFolder += " (" + edition + " Edition)";
+	            var releaseDate = GetReleaseDate(innerText);
+	            if (releaseDate != null)
+		            newFolder += " (" + releaseDate.Value.Year + ")";
+	            Directory.Move(targetFolder, newFolder);
+            }
         }
 
         private static async Task DownloadImageAsync(string url, string targetPath)
@@ -175,6 +187,38 @@ namespace FitgirlReadmeScraper
                 {
                 }
             }
+        }
+        
+        private static readonly Regex RegexEdition = new Regex(@"[:\-] (?<edition>[\w\s'""]+) Edition| \((?<edition>[\w\s'""]+) Edition\)", RegexOptions.IgnoreCase);
+        
+        private static string GetEdition(string desc)
+        {
+	        foreach (var line in desc.Split(new[] {"\r\n"}, StringSplitOptions.RemoveEmptyEntries))
+	        {
+		        var match = RegexEdition.Match(line);
+		        if (match.Success)
+		        {
+			        return match.Groups["edition"].Value;
+		        }
+	        }
+
+	        return null;
+        }
+
+        private static DateTime? GetReleaseDate(string desc)
+        {
+	        const string releaseDateStr = "Release Date: ";
+            
+	        foreach (var line in desc.Split(new[] {"\r\n"}, StringSplitOptions.RemoveEmptyEntries))
+	        {
+		        var substr = line.Substring(releaseDateStr.Length);
+		        if (substr.Contains(";"))
+			        substr = substr.Split(';')[0];
+		        if (DateTime.TryParse(substr, out var r))
+			        return r;
+	        }
+
+	        return null;
         }
     }
 }
