@@ -234,9 +234,14 @@ namespace FitgirlReadmeScraper
             
 	        foreach (var line in desc.Split(new[] {"\r\n"}, StringSplitOptions.RemoveEmptyEntries))
 	        {
+		        if (line.Length <= releaseDateStr.Length)
+			        continue;
+
 		        var substr = line.Substring(releaseDateStr.Length);
 		        if (substr.Contains(";"))
 			        substr = substr.Split(';')[0];
+		        if (substr.Contains("~"))
+			        substr = substr.Split('~')[0];
 		        if (DateTime.TryParse(substr, out var r))
 			        return r;
 	        }
