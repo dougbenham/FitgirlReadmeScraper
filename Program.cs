@@ -13,6 +13,9 @@ namespace FitgirlReadmeScraper
 {
     static class Program
     {
+	    public static readonly Regex RegexYear = new Regex(@" \((?<year>\d{4})\)");
+	    public static readonly Regex RegexReleaseDate = new Regex(@"Release Date:\s+(?<releaseDate>\w+\s\d{1,2},\s\d{4})");
+
         /// <summary>
         ///  The main entry point for the application.
         /// </summary>
@@ -36,7 +39,7 @@ namespace FitgirlReadmeScraper
 			        foreach (var f in new DirectoryInfo(@"E:\Games\").EnumerateDirectories("*", SearchOption.AllDirectories))
 			        {
 				        var folderPath = f.FullName;
-
+						
 				        if (f.EnumerateFiles("cover.jpg").Any())
 					        continue;
 
@@ -100,6 +103,35 @@ namespace FitgirlReadmeScraper
 	        catch (Exception ex)
 	        {
 		        MessageBox.Show(ex.ToString());
+	        }
+        }
+
+        private static async Task FixModifiedDatesAsync()
+        {
+	        foreach (var f in new DirectoryInfo(@"E:\Games\").EnumerateDirectories("*", SearchOption.AllDirectories))
+	        {
+		        var folderPath = f.FullName;
+
+		        var yearMatch = RegexYear.Match(f.Name);
+		        if (yearMatch.Success)
+		        {
+			        var year = int.Parse(yearMatch.Groups["year"].Value);
+			        if (f.LastWriteTime.Year != year)
+			        {
+				        var readmePath = folderPath + "\\readme.txt";
+				        if (File.Exists(readmePath))
+				        {
+					        var readmeContent = await File.ReadAllTextAsync(readmePath);
+					        var releaseDate = GetReleaseDate(readmeContent);
+					        if (releaseDate != null)
+						        f.LastWriteTime = releaseDate.Value;
+					        else
+						        f.LastWriteTime = new(year, 1, 1);
+				        }
+				        else
+					        f.LastWriteTime = new(year, 1, 1);
+			        }
+		        }
 	        }
         }
 
@@ -230,19 +262,10 @@ namespace FitgirlReadmeScraper
 
         private static DateTime? GetReleaseDate(string desc)
         {
-	        const string releaseDateStr = "Release Date: ";
-            
 	        foreach (var line in desc.Split(new[] {"\r\n"}, StringSplitOptions.RemoveEmptyEntries))
 	        {
-		        if (line.Length <= releaseDateStr.Length)
-			        continue;
-
-		        var substr = line.Substring(releaseDateStr.Length);
-		        if (substr.Contains(";"))
-			        substr = substr.Split(';')[0];
-		        if (substr.Contains("~"))
-			        substr = substr.Split('~')[0];
-		        if (DateTime.TryParse(substr, out var r))
+		        var match = RegexReleaseDate.Match(line);
+		        if (match.Success && DateTime.TryParse(match.Groups["releaseDate"].Value, out var r))
 			        return r;
 	        }
 
