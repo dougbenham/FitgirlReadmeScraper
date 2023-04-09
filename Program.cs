@@ -26,6 +26,9 @@ namespace FitgirlReadmeScraper
 			if (Environment.CurrentDirectory != cd && cd != null)
 				Environment.CurrentDirectory = cd;
 
+			/*await FixModifiedDatesAsync();
+			return;*/
+
 	        try
 	        {
 		        if (args.Length < 2)
@@ -116,21 +119,18 @@ namespace FitgirlReadmeScraper
 		        if (yearMatch.Success)
 		        {
 			        var year = int.Parse(yearMatch.Groups["year"].Value);
-			        if (f.LastWriteTime.Year != year)
+			        var readmePath = folderPath + "\\readme.txt";
+			        if (File.Exists(readmePath))
 			        {
-				        var readmePath = folderPath + "\\readme.txt";
-				        if (File.Exists(readmePath))
-				        {
-					        var readmeContent = await File.ReadAllTextAsync(readmePath);
-					        var releaseDate = GetReleaseDate(readmeContent);
-					        if (releaseDate != null)
-						        f.LastWriteTime = releaseDate.Value;
-					        else
-						        f.LastWriteTime = new(year, 1, 1);
-				        }
-				        else
+				        var readmeContent = await File.ReadAllTextAsync(readmePath);
+				        var releaseDate = GetReleaseDate(readmeContent);
+				        if (releaseDate != null)
+					        f.LastWriteTime = releaseDate.Value;
+				        else if (f.LastWriteTime.Year != year)
 					        f.LastWriteTime = new(year, 1, 1);
 			        }
+			        else if (f.LastWriteTime.Year != year)
+				        f.LastWriteTime = new(year, 1, 1);
 		        }
 	        }
         }
