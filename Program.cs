@@ -3,11 +3,13 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Net.Http;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Web;
 using System.Windows.Forms;
 using HtmlAgilityPack;
+using HtmlDocument = HtmlAgilityPack.HtmlDocument;
 
 namespace FitgirlReadmeScraper
 {
@@ -15,6 +17,8 @@ namespace FitgirlReadmeScraper
     {
 	    public static readonly Regex RegexYear = new Regex(@" \((?<year>\d{4})\)");
 	    public static readonly Regex RegexReleaseDate = new Regex(@"Release Date:\s+(?<releaseDate>\w+\s\d{1,2},\s\d{4})");
+	    private static readonly HttpClient HttpClient = new HttpClient();
+	    private static readonly string CookiesFileName = Path.GetFileNameWithoutExtension(Application.ExecutablePath) + ".dat";
 
         /// <summary>
         ///  The main entry point for the application.
@@ -139,13 +143,39 @@ namespace FitgirlReadmeScraper
         {
 	        targetFolder = targetFolder.EndsWith(Path.DirectorySeparatorChar) ? targetFolder : (targetFolder + Path.DirectorySeparatorChar);
 
-            var web = new HtmlWeb();
-            var doc = await web.LoadFromWebAsync(url);
-            //var doc = new HtmlDocument();
-            //doc.Load("temp.html");
-            var desc = doc.DocumentNode.SelectSingleNode("//*[@id=\"description\"]");
+	        var cookies = File.Exists(CookiesFileName) ? await File.ReadAllTextAsync(CookiesFileName) : null;
+	        HtmlNode desc = null;
+	        while (true)
+	        {
+		        if (string.IsNullOrEmpty(cookies))
+		        {
+			        cookies = Microsoft.VisualBasic.Interaction.InputBox("Enter cookies:", Application.ProductName);
+			        if (string.IsNullOrEmpty(cookies))
+				        return;
 
-            var tasks = new List<Task>();
+					await File.WriteAllTextAsync(CookiesFileName, cookies);
+		        }
+
+		        var response = await HttpClient.SendAsync(new(HttpMethod.Get, url)
+		        {
+			        Headers =
+			        {
+				        { "User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0" },
+				        { "Cookie", cookies }
+			        }
+		        });
+		        var doc = new HtmlDocument();
+		        doc.LoadHtml(await response.Content.ReadAsStringAsync());
+		        //var doc = new HtmlDocument();
+		        //doc.Load("temp.html");
+		        desc = doc.DocumentNode.SelectSingleNode("//*[@id=\"description\"]");
+		        if (desc != null)
+			        break;
+
+		        cookies = null;
+	        }
+
+	        var tasks = new List<Task>();
             var imgIndex = 0;
             foreach (var img in desc.SelectNodes("//img"))
             {
