@@ -18,7 +18,8 @@ namespace FitgirlReadmeScraper
 	    public static readonly Regex RegexYear = new Regex(@" \((?<year>\d{4})\)");
 	    public static readonly Regex RegexReleaseDate = new Regex(@"Release Date:\s+(?<releaseDate>\w+\s\d{1,2},\s\d{4})");
 	    private static readonly HttpClient HttpClient = new HttpClient();
-	    private static readonly string CookiesFileName = Path.GetFileNameWithoutExtension(Application.ExecutablePath) + ".dat";
+	    private static readonly string CookiesFileName = Path.GetFileNameWithoutExtension(Application.ExecutablePath) + ".cookies";
+	    private static readonly string AgentFileName = Path.GetFileNameWithoutExtension(Application.ExecutablePath) + ".agent";
 
         /// <summary>
         ///  The main entry point for the application.
@@ -144,6 +145,7 @@ namespace FitgirlReadmeScraper
 	        targetFolder = targetFolder.EndsWith(Path.DirectorySeparatorChar) ? targetFolder : (targetFolder + Path.DirectorySeparatorChar);
 
 	        var cookies = File.Exists(CookiesFileName) ? await File.ReadAllTextAsync(CookiesFileName) : null;
+	        var agent = File.Exists(AgentFileName) ? await File.ReadAllTextAsync(AgentFileName) : null;
 	        HtmlNode desc = null;
 	        while (true)
 	        {
@@ -155,12 +157,20 @@ namespace FitgirlReadmeScraper
 
 					await File.WriteAllTextAsync(CookiesFileName, cookies);
 		        }
+		        if (string.IsNullOrEmpty(agent))
+		        {
+			        agent = Microsoft.VisualBasic.Interaction.InputBox("Enter user-agent:", Application.ProductName);
+			        if (string.IsNullOrEmpty(agent))
+				        return;
+
+			        await File.WriteAllTextAsync(AgentFileName, agent);
+		        }
 
 		        var response = await HttpClient.SendAsync(new(HttpMethod.Get, url)
 		        {
 			        Headers =
 			        {
-				        { "User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0" },
+				        { "User-Agent", agent },
 				        { "Cookie", cookies }
 			        }
 		        });
@@ -173,6 +183,7 @@ namespace FitgirlReadmeScraper
 			        break;
 
 		        cookies = null;
+		        agent = null;
 	        }
 
 	        var tasks = new List<Task>();
