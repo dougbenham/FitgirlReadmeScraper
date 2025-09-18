@@ -192,19 +192,13 @@ namespace FitgirlReadmeScraper
 
 			await Task.WhenAll(tasks);
 
-			var badSuffix = " [FitGirl Repack]\\";
-			if (targetFolder.EndsWith(badSuffix))
+			var title = GetTitle(innerText);
+			var newFolder = Path.Combine(Path.GetDirectoryName(targetFolder.TrimEnd(Path.DirectorySeparatorChar)) ?? "", title);
+
+			if (targetFolder != newFolder &&
+                MessageBox.Show("Rename to..\r\n" + title, "", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
 			{
-				var newFolder = targetFolder.Remove(targetFolder.Length - badSuffix.Length);
-
-				var edition = GetEdition(innerText);
-				if (edition != null)
-					newFolder += " (" + edition + " Edition)";
-				var releaseDate = GetReleaseDate(innerText);
-				if (releaseDate != null)
-					newFolder += " (" + releaseDate.Value.Year + ")";
-
-				for (int t = 0; t < 3; t++)
+                for (int t = 0; t < 3; t++)
 				{
 					try
 					{
@@ -253,23 +247,42 @@ namespace FitgirlReadmeScraper
 
 		private static readonly Regex RegexEdition = new Regex(@"[:\-] (?<edition>[\w\s'""]+) Edition| \((?<edition>[\w\s'""]+) Edition\)", RegexOptions.IgnoreCase);
 
-		private static string GetEdition(string desc)
+		private static string GetTitle(string innerText)
 		{
-			foreach (var line in desc.Split(new[] { "\r\n" }, StringSplitOptions.RemoveEmptyEntries))
+			Match editionMatch = null;
+			string edition = null;
+			var split = innerText.Split(new[] { "\r\n" }, StringSplitOptions.RemoveEmptyEntries);
+			foreach (var line in split)
 			{
-				var match = RegexEdition.Match(line);
-				if (match.Success)
+				editionMatch = RegexEdition.Match(line);
+				if (editionMatch.Success)
 				{
-					return match.Groups["edition"].Value;
+					edition = editionMatch.Groups["edition"].Value;
+					break;
 				}
 			}
 
-			return null;
+			var title = split[0].Trim();
+			if (edition != null)
+			{
+				title = title.Replace(editionMatch.Value, "").Trim();
+				title += " (" + edition + " Edition)";
+			}
+			var releaseDate = GetReleaseDate(innerText);
+			if (releaseDate != null)
+				title += " (" + releaseDate.Value.Year + ")";
+
+            title = title.Replace(": ", " - ");
+
+            foreach (var c in Path.GetInvalidFileNameChars())
+                title = title.Replace(c, '_');
+
+            return title;
 		}
 
-		private static DateTime? GetReleaseDate(string desc)
+		private static DateTime? GetReleaseDate(string innerText)
 		{
-			foreach (var line in desc.Split(new[] { "\r\n" }, StringSplitOptions.RemoveEmptyEntries))
+			foreach (var line in innerText.Split(new[] { "\r\n" }, StringSplitOptions.RemoveEmptyEntries))
 			{
 				var match = RegexReleaseDate.Match(line);
 				if (match.Success && DateTime.TryParse(match.Groups["releaseDate"].Value, out var r))
