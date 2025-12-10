@@ -7,7 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="FlareSolverrSharp-fix-30" Version="3.0.6" />
+	<PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.1" />
     <PackageReference Include="HtmlAgilityPack" Version="1.11.40" />
   </ItemGroup>
 

@@ -8,7 +8,7 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Web;
 using System.Windows.Forms;
-using FlareSolverrSharp;
+using Microsoft.Data.Sqlite;
 using HtmlAgilityPack;
 using HtmlDocument = HtmlAgilityPack.HtmlDocument;
 
@@ -18,7 +18,7 @@ namespace FitgirlReadmeScraper
 	{
 		public static readonly Regex RegexYear = new Regex(@" \((?<year>\d{4})\)");
 		public static readonly Regex RegexReleaseDate = new Regex(@"Release Date:\s+(?<releaseDate>\w+\s\d{1,2},\s\d{4})");
-		private static readonly HttpClient HttpClient = new HttpClient(new ClearanceHandler("http://192.168.1.101:8191/"));
+		private static readonly HttpClient HttpClient = new HttpClient();
 
 		/// <summary>
 		///  The main entry point for the application.
@@ -26,6 +26,8 @@ namespace FitgirlReadmeScraper
 		[STAThread]
 		static async Task Main(string[] args)
 		{
+			AttachFirefoxCookiesAndUserAgent(HttpClient);
+            
 			var cd = Path.GetDirectoryName(Environment.ProcessPath);
 			if (Environment.CurrentDirectory != cd && cd != null)
 				Environment.CurrentDirectory = cd;
@@ -291,5 +293,40 @@ namespace FitgirlReadmeScraper
 
 			return null;
 		}
-	}
+
+		private static IEnumerable<string> EnumerateFirefoxCookieDbPaths()
+		{
+			var profiles = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), @"Mozilla\Firefox\Profiles");
+            foreach (var dir in Directory.EnumerateDirectories(profiles))
+            {
+                var cookieDbPath = Path.Combine(dir, "cookies.sqlite");
+                if (File.Exists(cookieDbPath))
+                    yield return cookieDbPath;
+            }
+        }
+
+		private static void AttachFirefoxCookiesAndUserAgent(HttpClient client)
+		{
+			var cookieDbPath = EnumerateFirefoxCookieDbPaths().OrderByDescending(File.GetLastWriteTime).First();
+			var connectionString = $"Data Source={cookieDbPath}";
+			using var connection = new SqliteConnection(connectionString);
+			connection.Open();
+			using var command = connection.CreateCommand();
+			command.CommandText = "SELECT name, value, path FROM moz_cookies WHERE host = '.1337x.to'";
+			using var reader = command.ExecuteReader();
+			while (reader.Read())
+			{
+				var name = reader.GetString(0);
+                var value = reader.GetString(1);
+                var path = reader.GetString(2);
+                var cookie = new Cookie(name, value, path, "1337x.to");
+                client.DefaultRequestHeaders.Add("Cookie", cookie.ToString());
+            }
+
+			var firefoxPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Mozilla Firefox", "firefox.exe");
+            var fvi = System.Diagnostics.FileVersionInfo.GetVersionInfo(firefoxPath);
+            var version = fvi.ProductVersion;
+            client.DefaultRequestHeaders.Add("User-Agent", $"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:{version}) Gecko/20100101 Firefox/{version}");
+        }
+    }
 }
