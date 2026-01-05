@@ -325,7 +325,7 @@ namespace FitgirlReadmeScraper
 
 			var firefoxPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Mozilla Firefox", "firefox.exe");
             var fvi = System.Diagnostics.FileVersionInfo.GetVersionInfo(firefoxPath);
-            var version = fvi.ProductVersion;
+            var version = fvi.ProductMajorPart + "." + fvi.ProductMinorPart;
             client.DefaultRequestHeaders.Add("User-Agent", $"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:{version}) Gecko/20100101 Firefox/{version}");
         }
     }
