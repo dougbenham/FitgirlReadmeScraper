@@ -1,3 +1,10 @@
+using HtmlAgilityPack;
+using Microsoft.Data.Sqlite;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using OpenQA.Selenium;
+using OpenQA.Selenium.Chrome;
+using SeleniumUndetectedChromeDriver;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -8,8 +15,6 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Web;
 using System.Windows.Forms;
-using Microsoft.Data.Sqlite;
-using HtmlAgilityPack;
 using HtmlDocument = HtmlAgilityPack.HtmlDocument;
 
 namespace FitgirlReadmeScraper
@@ -26,8 +31,6 @@ namespace FitgirlReadmeScraper
 		[STAThread]
 		static async Task Main(string[] args)
 		{
-			AttachFirefoxCookiesAndUserAgent(HttpClient);
-            
 			var cd = Path.GetDirectoryName(Environment.ProcessPath);
 			if (Environment.CurrentDirectory != cd && cd != null)
 				Environment.CurrentDirectory = cd;
@@ -145,9 +148,19 @@ namespace FitgirlReadmeScraper
 		{
 			targetFolder = targetFolder.EndsWith(Path.DirectorySeparatorChar) ? targetFolder : (targetFolder + Path.DirectorySeparatorChar);
 
-			var response = await HttpClient.GetStringAsync(url);
+			await AttachCookiesAndUserAgentAsync(HttpClient);
+			var response = await HttpClient.GetAsync(url);
+			if (response.StatusCode == HttpStatusCode.Forbidden)
+			{
+				await AttachCookiesAndUserAgentAsync(HttpClient, true);
+				response = await HttpClient.GetAsync(url);
+            }
+
+			response.EnsureSuccessStatusCode();
+
+			var responseStr = await response.Content.ReadAsStringAsync();
 			var doc = new HtmlDocument();
-			doc.LoadHtml(response);
+			doc.LoadHtml(responseStr);
 			//var doc = new HtmlDocument();
 			//doc.Load("temp.html");
 			var desc = doc.DocumentNode.SelectSingleNode("//*[@id=\"description\"]");
@@ -319,7 +332,7 @@ namespace FitgirlReadmeScraper
 				var name = reader.GetString(0);
                 var value = reader.GetString(1);
                 var path = reader.GetString(2);
-                var cookie = new Cookie(name, value, path, "1337x.to");
+                var cookie = new System.Net.Cookie(name, value, path, "1337x.to");
                 client.DefaultRequestHeaders.Add("Cookie", cookie.ToString());
             }
 
@@ -328,5 +341,74 @@ namespace FitgirlReadmeScraper
             var version = fvi.ProductMajorPart + "." + fvi.ProductMinorPart;
             client.DefaultRequestHeaders.Add("User-Agent", $"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:{version}) Gecko/20100101 Firefox/{version}");
         }
-    }
+
+        private static async Task AttachCookiesAndUserAgentAsync(HttpClient client, bool forceRefresh = false)
+        {
+	        string? userAgent = null;
+	        Cookie[]? cookies = null;
+	        string json;
+			const string jsonFilePath = "FitgirlReadmeScraper.json";
+
+            // Try to pull from previous
+            if (File.Exists(jsonFilePath) && !forceRefresh)
+            {
+                try
+                {
+	                json = await File.ReadAllTextAsync(jsonFilePath);
+                    var data = JObject.Parse(json);
+	                userAgent = data["UserAgent"]?.ToString();
+	                cookies = data["Cookies"]?.Select(c => new Cookie(c["Name"]?.ToString(), c["Value"]?.ToString())).Where(c => c.Name != null && c.Value != null).ToArray();
+                }
+                catch
+                { }
+            }
+
+			if (userAgent == null || cookies == null)
+            {
+                // Pull fresh cookies & user agent
+                (userAgent, cookies) = await GetChromeCookiesAndUserAgentAsync();
+
+                // Store for next time
+                json = JsonConvert.SerializeObject(new { UserAgent = userAgent, Cookies = cookies });
+                await File.WriteAllTextAsync(jsonFilePath, json);
+            }
+
+            client.DefaultRequestHeaders.Clear();
+            foreach (var cookie in cookies)
+            {
+	            client.DefaultRequestHeaders.Add("Cookie", new System.Net.Cookie(cookie.Name, cookie.Value).ToString());
+            }
+            client.DefaultRequestHeaders.Add("User-Agent", userAgent);
+        }
+
+        private static async Task<(string UserAgent, Cookie[] Cookies)> GetChromeCookiesAndUserAgentAsync()
+		{
+            var options = new ChromeOptions();
+			var path = await new ChromeDriverInstaller().Auto();
+			var driver = UndetectedChromeDriver.Create(options, driverExecutablePath: path);
+			try
+			{
+				driver.Manage().Timeouts().ImplicitWait = TimeSpan.FromSeconds(30);
+
+				await driver.Navigate().GoToUrlAsync("https://1337x.to");
+
+				// Wait for the target element to exist
+				_ = driver.FindElement(By.TagName("main"));
+
+				// Import the cookies that were generated
+				var cookies = driver.Manage().Cookies.AllCookies.Select(c => new Cookie(c.Name, c.Value)).ToArray();
+
+				// Get user agent from driver
+				var userAgent = (string) ((IJavaScriptExecutor) driver).ExecuteScript("return navigator.userAgent;");
+
+				return (userAgent, cookies);
+			}
+			finally
+			{
+				driver.Quit();
+			}
+		}
+
+		record Cookie(string Name, string Value);
+	}
 }
