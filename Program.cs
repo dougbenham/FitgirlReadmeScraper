@@ -385,7 +385,7 @@ namespace FitgirlReadmeScraper
 		{
             var options = new ChromeOptions();
 			var path = await new ChromeDriverInstaller().Auto();
-			var driver = UndetectedChromeDriver.Create(options, driverExecutablePath: path);
+			await using var driver = UndetectedChromeDriver.Create(options, driverExecutablePath: path);
 			try
 			{
 				driver.Manage().Timeouts().ImplicitWait = TimeSpan.FromSeconds(30);
