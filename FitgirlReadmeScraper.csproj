@@ -1,16 +1,33 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <OutputType>WinExe</OutputType>
-    <TargetFramework>net10.0-windows7.0</TargetFramework>
-    <UseWindowsForms>true</UseWindowsForms>
-  </PropertyGroup>
+	<PropertyGroup>
+		<OutputType>WinExe</OutputType>
+		<TargetFramework>net10.0-windows7.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<UseWindowsForms>true</UseWindowsForms>
+		<AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+		<AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+	</PropertyGroup>
 
-  <ItemGroup>
-	<PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.10" />
-    <PackageReference Include="HtmlAgilityPack" Version="1.12.4" />
-    <PackageReference Include="Selenium.UndetectedChromeDriver" Version="1.1.4" />
-    <PackageReference Include="SQLitePCLRaw.lib.e_sqlite3" Version="2.1.12" />
-  </ItemGroup>
+	<PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+		<OutputPath>bin\Debug\</OutputPath>
+	</PropertyGroup>
+	<PropertyGroup Condition="'$(Configuration)' == 'Release'">
+		<OutputPath>bin\Release\</OutputPath>
+	</PropertyGroup>
 
+	<ItemGroup>
+		<PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.10" />
+		<PackageReference Include="HtmlAgilityPack" Version="1.12.4" />
+		<PackageReference Include="Selenium.UndetectedChromeDriver" Version="1.1.4" />
+		<PackageReference Include="SQLitePCLRaw.lib.e_sqlite3" Version="3.53.3" />
+	</ItemGroup>
+
+	<Target Name="PostPublishCopy" AfterTargets="AfterSdkPublish" Condition="'$(PublishCopyDestination)' != ''">
+		<Message Text="Copying $(PublishDir) to $(PublishCopyDestination)" Importance="High" />
+		<ItemGroup>
+			<_PublishedFiles Include="$(PublishDir)**\*" />
+		</ItemGroup>
+		<Copy SourceFiles="@(_PublishedFiles)" DestinationFiles="@(_PublishedFiles->'$(PublishCopyDestination)\%(RecursiveDir)%(Filename)%(Extension)')" />
+	</Target>
 </Project>

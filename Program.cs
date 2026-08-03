@@ -1,3 +1,6 @@
+using System.Net;
+using System.Text.RegularExpressions;
+using System.Web;
 using HtmlAgilityPack;
 using Microsoft.Data.Sqlite;
 using Newtonsoft.Json;
@@ -5,16 +8,6 @@ using Newtonsoft.Json.Linq;
 using OpenQA.Selenium;
 using OpenQA.Selenium.Chrome;
 using SeleniumUndetectedChromeDriver;
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Net;
-using System.Net.Http;
-using System.Text.RegularExpressions;
-using System.Threading.Tasks;
-using System.Web;
-using System.Windows.Forms;
 using HtmlDocument = HtmlAgilityPack.HtmlDocument;
 
 namespace FitgirlReadmeScraper
